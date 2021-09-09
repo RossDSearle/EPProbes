@@ -5,16 +5,24 @@ library(xts)
 library(dygraphs)
 library(RSQLite)
 library(shiny)
-library(flexdashboard)
 library(lubridate)
 library(htmlwidgets)
 
-
-rootDir <- 'C:/Projects/EP/ProbeCalibrations'
-source('C:/Users/sea084/OneDrive - CSIRO/RossRCode/Git/EP/Utils_EP.R')
+machineName <- as.character(Sys.info()['nodename'])
+if(machineName == 'soils-discovery'){
+  #rootDir <- 'C:/Projects/EP/ProbeCalibrations'
+  source('./Utils_EP.R')
+  #probeDBfile <- 'C:/Projects/EP/ProbeCalibrations/EP_ProbeData.db'
+  
+}else{
+ # rootDir <- 'C:/Projects/EP/ProbeCalibrations'
+  source('C:/Users/sea084/OneDrive - CSIRO/RossRCode/Git/EP/Utils_EP.R')
+}
 
 probeInfo <- getDBSiteNames()
-probeNames <- probeInfo$ProjectSiteName
+#probeNames <- probeInfo$ProjectSiteName
+probeNames <- runQuery("select distinct(site) from soilData where source = 'APSIM' order by site")
+probeNames <- probeNames[-4,]
 
 startDate = '2016-01-01'
 endDate = '2021-08-30'
@@ -65,7 +73,7 @@ display: inline-block;
         # Show a plot of the generated distribution
         mainPanel(
            
-          fluidRow(  dygraphOutput("volTSChart", width = "800px", height = "250px"),
+          fluidRow(  dygraphOutput("volTSChart", width = "800px", height = "250px"), dygraphOutput("rawTSChart", width = "800px", height = "250px"),
                      dygraphOutput("rainTSChart", width = "800px", height = "100px"),
                      ),
           
@@ -89,6 +97,7 @@ server <- function(input, output, session) {
   RV$sid <- NULL
   RV$currentChart <- NULL
   RV$currentRainTS <- NULL
+  RV$currentRawTS <- NULL
   
   
   
@@ -164,7 +173,9 @@ server <- function(input, output, session) {
     rec <- probeInfo[probeInfo$ProjectSiteName == input$probeName, ]
     print(rec)
     RV$sid <- rec$SiteID
+    
     RV$currentCalibs <- getProbeCalibrationData(sid = RV$sid, datasource='APSIM')
+    RV$currentRawTS <- getAllProbeDataTS(sid=RV$sid)
     ts <- getAllLayersVolumeticTS(sid=RV$sid, startDate, endDate)
     ts[is.na(ts)] <- 0 
     
@@ -174,6 +185,22 @@ server <- function(input, output, session) {
     
   })
   
+  
+  output$volTSChart <- renderDygraph({
+    RV$currentChart
+  })
+  
+  output$rawTSChart <- renderDygraph({
+    print('here')
+    print(str(RV$currentTS ))
+    print(str(RV$currentRawTS ))
+    req(RV$currentRawTS)
+   
+    dygraph(RV$currentRawTS,  group = 'Main')%>%
+      dyLegend(show = "follow", width = 250, showZeroValues = TRUE, labelsDiv = NULL, labelsSeparateLines = FALSE, hideOnMouseOut = TRUE) #%>%
+  })
+  
+
   
   observe({
     
@@ -234,7 +261,7 @@ server <- function(input, output, session) {
       
       
       dygraph(sts,  ylab = 'Seasonal Soil Moisture (mm)', group = 'Seasons') %>% 
-        dyOptions(colors = RColorBrewer::brewer.pal(ncol(sts), "Set1"), stackedGraph=F) %>% 
+        dyOptions(colors = RColorBrewer::brewer.pal(ncol(sts), "Set1"), stackedGraph=F, strokeWidth=2) %>% 
       dyAxis("x",valueFormatter=JS(getMonthDay), axisLabelFormatter=JS(getMonth))
         
     })
