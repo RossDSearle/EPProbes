@@ -7,20 +7,23 @@ library(RSQLite)
 library(shiny)
 library(lubridate)
 library(htmlwidgets)
+library(htmltools)
+library(leaflet)
 
 machineName <- as.character(Sys.info()['nodename'])
 if(machineName == 'soils-discovery'){
-  #rootDir <- 'C:/Projects/EP/ProbeCalibrations'
+
   source('./Utils_EP.R')
-  #probeDBfile <- 'C:/Projects/EP/ProbeCalibrations/EP_ProbeData.db'
+  source('./calibrateSoilsDynamic.R')
+
   
 }else{
- # rootDir <- 'C:/Projects/EP/ProbeCalibrations'
+
   source('C:/Users/sea084/OneDrive - CSIRO/RossRCode/Git/EP/Utils_EP.R')
+  source('./calibrateSoilsDynamic.R')
 }
 
 probeInfo <- getDBSiteNames()
-#probeNames <- probeInfo$ProjectSiteName
 probeNames <- runQuery("select distinct(site) from soilData where source = 'APSIM' order by site")
 probeNames <- probeNames[-4,]
 
@@ -63,18 +66,26 @@ display: inline-block;
       "}"
     ),
     
+    
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
-        sidebarPanel( width = 2,
+        sidebarPanel( width = 3,
           selectInput("probeName", "Probe ", choices=NULL, selected = "Matthews", width = 250),
           helpText("Select map date below"), 
-          sliderInput("datePker", "Dates:", min = as.Date("2017-01-01","%Y-%m-%d"), max = as.Date("2021-09-01","%Y-%m-%d"), value=as.Date("2021-08-01"), timeFormat="%Y-%m-%d",
-                      animate = animationOptions(interval = 300, loop = TRUE))),
+          sliderInput("datePker", "Dates:", min = as.Date("2017-01-01","%Y-%m-%d"), max = as.Date("2021-09-01","%Y-%m-%d"), value=as.Date("2021-07-01"), timeFormat="%Y-%m-%d",
+                      animate = animationOptions(interval = 300, loop = TRUE)),
+          sliderInput("tempCor", "Temp Correction:", min = 0, max = 0.5, value=0.3),
+          
+          HTML('<BR><BR><BR><BR><BR><BR>'),
+          leafletOutput("siteMap",width = 350, height = 350)
+          
+          ),
+        
         # Show a plot of the generated distribution
         mainPanel(
            
-          fluidRow(  dygraphOutput("volTSChart", width = "800px", height = "250px"), dygraphOutput("rawTSChart", width = "800px", height = "250px"),
-                     dygraphOutput("rainTSChart", width = "800px", height = "100px"),
+          fluidRow(  dygraphOutput("volTSChart", width = "800px", height = "250px"), HTML(''), dygraphOutput("rawTSChart", width = "800px", height = "150px"),
+                     dygraphOutput("rainTSChart", width = "800px", height = "150px"),
                      ),
           
           fluidRow( column(6, plotOutput("volProfile", width = "450px", height = "450px")), 
@@ -100,17 +111,15 @@ server <- function(input, output, session) {
   RV$currentRawTS <- NULL
   
   
-  
   output$vtext <- renderText({
     
      req(RV$currentCalibs)
      dv <-input$datePker
-     #print(dv)
+
      
      yr <- year(dv)
      annRain <- sum(RV$currentRainTS[paste0(yr,'-01-01/', dv)])
      inSeasonRain <- sum(RV$currentRainTS[paste0(yr,'-04-01/', dv)])
-     #print(annRain)
     
      dfBucket <- sum(RV$currentCalibs$modDUL-RV$currentCalibs$modLL)*100
      swTotal <- sum(as.numeric(RV$currentTS[dv,]))
@@ -169,21 +178,23 @@ server <- function(input, output, session) {
   
   observe({
     
-    req(input$probeName)
+    req(input$probeName, input$tempCor)
     rec <- probeInfo[probeInfo$ProjectSiteName == input$probeName, ]
-    print(rec)
     RV$sid <- rec$SiteID
+    RV$currentRawTS <- getAllProbeDataTS(sid=RV$sid, tempCorrection=T, correctionVal=input$tempCor)
     
-    RV$currentCalibs <- getProbeCalibrationData(sid = RV$sid, datasource='APSIM')
-    RV$currentRawTS <- getAllProbeDataTS(sid=RV$sid)
-    ts <- getAllLayersVolumeticTS(sid=RV$sid, startDate, endDate)
+    calibs <- CalibrateSoilsDynamic(rawTS = RV$currentRawTS, sid=sid, calSrc='APSIM')
+    RV$currentCalibs <- calibs
+
+   # RV$currentCalibs <- getProbeCalibrationData(sid = RV$sid, datasource='APSIM')
+    
+    ts <- getAllLayersVolumeticTS2(sid=RV$sid, rawTS=RV$currentRawTS, calibs, type='Available', tempCorrection=T, correctionVal=0.3)
     ts[is.na(ts)] <- 0 
     
     RV$currentTS <- ts
-    RV$currentRainTS <- getAllProbeDataTS(sid=RV$sid , productType = 'Rainfall')
+    RV$currentRainTS <- getProbeDataTS(sid=RV$sid , productType = 'Rainfall', depth=0)
     
-    
-  })
+    })
   
   
   output$volTSChart <- renderDygraph({
@@ -191,13 +202,13 @@ server <- function(input, output, session) {
   })
   
   output$rawTSChart <- renderDygraph({
-    print('here')
-    print(str(RV$currentTS ))
-    print(str(RV$currentRawTS ))
+
     req(RV$currentRawTS)
-   
+    dt <- as.Date(input$datePker)
     dygraph(RV$currentRawTS,  group = 'Main')%>%
-      dyLegend(show = "follow", width = 250, showZeroValues = TRUE, labelsDiv = NULL, labelsSeparateLines = FALSE, hideOnMouseOut = TRUE) #%>%
+      dyLegend(show = "follow", width = 250, showZeroValues = TRUE, labelsDiv = NULL, labelsSeparateLines = FALSE, hideOnMouseOut = TRUE) %>%
+      dyAxis("y", label ='Raw Probe Values', valueRange = c(0, maxVal))  %>%
+    dyEvent( dt, label = dt, labelLoc = c("top"), color = "black", strokePattern = "solid")
   })
   
 
@@ -208,28 +219,22 @@ server <- function(input, output, session) {
       
       dt <- as.Date(input$datePker)
       yr <- year(dt)
-      print(yr)
+
       isolate({
         
-        #maxVal <- max(RV$currentTS, RV$currentRainTS)
-        #maxVal=80
         m <- rowSums(RV$currentTS,na.rm=TRUE)
         maxVal <- max(m)
-        
-        #mts <- merge.xts(RV$currentTS, RV$currentRainTS)
         mts <- RV$currentTS
         colnames(mts) <- str_remove(colnames(mts), 'D_')
         
         RV$currentChart <- dygraph(mts,  ylab =  RV$currentSiteInfo$DataType, group = 'Main') %>%
-          dyAxis("y", label ='', valueRange = c(0, maxVal)) %>%
-          dyRangeSelector(dateWindow = c(paste0(yr, "-01-01"), paste0(2021, "-08-31")), height = 20,)  %>%
+          dyAxis("y", label ='Volumetric Moisture (mm)', valueRange = c(0, maxVal)) %>%
+          
           dyOptions(axisLineWidth = 1.5, fillGraph = F, drawGrid = T, titleHeight = 26) %>%
           dyOptions(colors = RColorBrewer::brewer.pal(11, "Paired"), stackedGraph=T, retainDateWindow = TRUE) %>%
           dyEvent( dt, label = dt, labelLoc = c("top"), color = "black", strokePattern = "solid") %>%
           dyLegend(show = "follow", width = 250, showZeroValues = TRUE, labelsDiv = NULL, labelsSeparateLines = FALSE, hideOnMouseOut = TRUE) #%>%
-          # dySeriesData( 'Rainfall', RV$currentRainTS) %>%
-          # dySeries("Rainfall", stepPlot = TRUE, fillGraph = TRUE, color = "red") %>%
-          # dyRangeSelector()
+
       })
     }
     
@@ -241,15 +246,19 @@ server <- function(input, output, session) {
 })
   
   output$rainTSChart <- renderDygraph({
+    
+
     req(RV$currentRainTS)
     dt <- as.Date(input$datePker)
+
+    yr <- year(dt)
     isolate({
       colnames(RV$currentRainTS)<-'Rain'
-   
-    dygraph(RV$currentRainTS,  ylab = 'Rain (mm)', group = 'Main') %>% 
-    dyBarChart() %>% 
+      dygraph(RV$currentRainTS,  ylab = 'Rain (mm)', group = 'Main') %>% 
+      dyBarChart() %>% 
       dyOptions(colors = 'blue', retainDateWindow = TRUE) %>% 
-      dyEvent( dt, label = dt, labelLoc = c("top"), color = "black", strokePattern = "solid") 
+      dyEvent( dt, label = dt, labelLoc = c("top"), color = "black", strokePattern = "solid") %>%
+      dyRangeSelector(dateWindow = c(paste0(yr, "-01-01"), paste0(2021, "-08-31")), height = 20)  
     })
   })
   
@@ -267,7 +276,23 @@ server <- function(input, output, session) {
     })
   })
   
-  getTotalYearlyTS
+
+  output$siteMap <- renderLeaflet({
+    req(input$probeName)
+    
+    rec <- probeInfo[probeInfo$ProjectSiteName == input$probeName, ]
+    
+    lon <- rec$Longitude
+    lat <- rec$Latitude
+    leaflet::leaflet() %>% addProviderTiles('Esri.WorldImagery') %>%
+      setView(lon, lat, zoom = 7)  %>%
+      addProviderTiles("CartoDB.PositronOnlyLabels") %>%
+      addMarkers(lon, lat)
+  })
+  
+  
+  
+  
 }
 
 # Run the application 
