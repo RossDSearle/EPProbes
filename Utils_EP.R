@@ -13,18 +13,13 @@ library(lubridate)
 
 rasterOptions(datatype="FLT4S", timer=TRUE, format='GTiff',progress="text",chunksize=1e+09,maxmemory=1e+09, overwrite=TRUE) # maxmemory = max no of cells to read into memory
 
-machineName <- as.character(Sys.info()['nodename'])
-if(machineName == 'soils-discovery'){
-  probeDBfile <- '/datasets/work/lw-soildatarepo/work/Ross/EP/EP_ProbeData.db'
-}else{
-  probeDBfile <- 'C:/Projects/EP/ProbeCalibrations/EP_ProbeData.db'
-}
+probeDBfile <- 'C:/Projects/EP/ProbeCalibrations/EP_ProbeData.db'
 
 
 plotProfile <- function( x, depths, pts=NULL, attName, title=''){
   
   if(!is.null(pts)){
-    xmax <-  max(c(pts$x, x), na.rm = T)
+   xmax <-  max(c(pts$x, x), na.rm = T)
   }else{
     xmax <-  max(c(x))
   }
@@ -38,7 +33,7 @@ plotProfile <- function( x, depths, pts=NULL, attName, title=''){
 
 runQuery <- function(sql){
   con <- dbConnect(RSQLite::SQLite(), probeDBfile )  
-  res <- dbSendQuery(con, sql)
+    res <- dbSendQuery(con, sql)
   df <- dbFetch(res)
   dbClearResult(res)
   RSQLite::dbDisconnect(con)
@@ -160,15 +155,15 @@ getProbeCalibrationData <- function(sid, datasource='SoilWaterExpress'){
 
 
 getSoilAttribute <- function(siteName, datasource, attribute){
-  con <- dbConnect(RSQLite::SQLite(), probeDBfile )  
-  
-  sql <- paste0("select * from soilData where source = '", datasource, "' and site = '", siteName, "' and method = '", attribute, "' order by upperDepth" )
-  res <- dbSendQuery(con, sql)
-  df <- dbFetch(res)
-  dbClearResult(res)
-  RSQLite::dbDisconnect(con)
-  
-  return(df)
+    con <- dbConnect(RSQLite::SQLite(), probeDBfile )  
+    
+    sql <- paste0("select * from soilData where source = '", datasource, "' and site = '", siteName, "' and method = '", attribute, "' order by upperDepth" )
+    res <- dbSendQuery(con, sql)
+    df <- dbFetch(res)
+    dbClearResult(res)
+    RSQLite::dbDisconnect(con)
+    
+    return(df)
 }
 
 getAllProbeInfo <- function(){
@@ -178,7 +173,7 @@ getAllProbeInfo <- function(){
 }
 
 getAWCParamsForSite <- function(siteName, datasource){
-  
+ 
   dulRecs <- getSoilAttribute(siteName=siteName, datasource=datasource, attribute='P3B_VL_03')
   llRecs <- getSoilAttribute(siteName=siteName, datasource=datasource, attribute='P3B_VL_15')
   odf <- data.frame(sid=sid, upperDepth=dulRecs$upperDepth, lowerDepth=dulRecs$lowerDepth, LL15=llRecs$value, DUL=dulRecs$value)
@@ -190,7 +185,7 @@ getDBProbeDepths<- function(sid){
   
   conp <- dbConnect(RSQLite::SQLite(), probeDBfile ) 
   
-  sql <- paste0("select distinct sid, depth from ProbeData where sid = '", sid, "';")
+  sql <- paste0("select distinct sid, depth from ProbeData where sid = '", sid, "' and dataType = 'Soil-Moisture';")
   res <- dbSendQuery(conp, sql)
   df <- dbFetch(res)
   dbClearResult(res)
@@ -254,32 +249,52 @@ getProbeDataDF <- function(sid, productType='Soil-Moisture', depth=0, startDate=
   
 }
 
-getProbeDataTS <- function(sid, productType='Soil-Moisture', depth=0, startDate='2016-01-01', endDate='2021-07-14'){
+getProbeDataTS <- function(sid, productType='Soil-Moisture', depth=0, startDate='2016-01-01', endDate='2021-07-14', tempCorrection=F, correctionVal=0.3){
+  
   df <- getProbeDataDF(sid=sid, productType=productType, depth, startDate=startDate, endDate=endDate)
   
   ts <- xts(x=df$value, order.by = as.Date(df$date))
   colnames(ts)<-'Val'
-  return(ts)
+  
+ 
+  if(tempCorrection){
+    Tref=18
+    f = correctionVal
+    tdf <- getProbeDataDF(sid=sid, productType='Soil-Temperature', depth, startDate=startDate, endDate=endDate)
+    
+   
+    tempts <- xts(x=tdf$value, order.by = as.Date(tdf$date))
+    colnames(tempts)<-'Temp'
+    mts <- merge.xts(ts,tempts)
+
+    tsCorrected <- mts$Val  + (Tref-mts$Temp) * f
+     return(tsCorrected)
+  }else{
+    return(ts)
+  }
+  
+  
+ 
   
 }
 
-getAllProbeDataTS <- function(sid, productType='Soil-Moisture', depth=0, startDate='2016-01-01', endDate='2021-07-14'){
+getAllProbeDataTS <- function(sid, productType='Soil-Moisture', depth=0, startDate='2016-01-01', endDate='2021-07-14', tempCorrection=F, correctionVal=0.3){
   
   depths <- getDBProbeDepths(sid)
   cnt=0
   cns <- c()
   cnts <- c()
   for (i in 1:nrow(depths)) {
-    pd <- getProbeDataTS(sid=sid, depth=depths$depth[i], productType=productType, startDate=startDate, endDate=endDate)
+    pd <- getProbeDataTS(sid=sid, depth=depths$depth[i], productType=productType, startDate=startDate, endDate=endDate, tempCorrection=tempCorrection, correctionVal)
     cnts <- c(cnts, nrow(pd))
     if(nrow(pd)!=0){
-      cns <- c(cns, depths$depth[i])
-      cnt=cnt+1
-      if(cnt==1){
-        od <- pd
-      }else{
-        od <- merge.xts(od, pd, join = 'outer')
-      }
+        cns <- c(cns, depths$depth[i])
+        cnt=cnt+1
+        if(cnt==1){
+          od <- pd
+        }else{
+          od <- merge.xts(od, pd, join = 'outer')
+        }
     }
   }
   
@@ -290,16 +305,16 @@ getAllProbeDataTS <- function(sid, productType='Soil-Moisture', depth=0, startDa
 }
 
 getModelDataDF <- function(sid=NULL, model='SMIPS2', version=NULL, productType='totalbucket', startDate='2016-01-01', endDate='2021-07-14'){
-  
+ 
   con <- dbConnect(RSQLite::SQLite(), DrillDBfile ) 
   
   sql <- paste0("select * from drillData where sid='", sid, 
-                "' and model = '", model, 
-                "' and version = '", version, 
-                "' and productType = '", productType, 
-                "' and date >= '", startDate, 
-                "' and date <= '", endDate, "'",
-                " order by date"  )
+                                            "' and model = '", model, 
+                                            "' and version = '", version, 
+                                            "' and productType = '", productType, 
+                                            "' and date >= '", startDate, 
+                                            "' and date <= '", endDate, "'",
+                                            " order by date"  )
   res <- dbSendQuery(con, sql)
   df <- dbFetch(res)
   dbClearResult(res)
@@ -402,8 +417,8 @@ splineVals <- function(indf, atts){
 }
 
 
-getLayerVolumeticTS <- function(sid, rawProbeVals, calData, probeDepth=NULL, type='Available'){
-  
+getLayerVolumeticTS <- function(sid, rawProbeVals, calData, probeDepth=NULL, type=type){
+
   depth <-probeDepth
   rec <- calData[calData$depth==depth,]
   
@@ -423,7 +438,7 @@ getLayerVolumeticTS <- function(sid, rawProbeVals, calData, probeDepth=NULL, typ
 }
 
 
-getAllLayersVolumeticTS <- function(sid, startDate, endDate, dataSource='APSIM', type='Available'){
+getAllLayersVolumeticTS <- function(sid, startDate, endDate, dataSource='APSIM', type='Available', tempCorrection=F, correctionVal=0.3){
   
   dps <- getDBProbeDepths(sid = sid)
   calibs = getProbeCalibrationData(sid = sid, datasource=dataSource)
@@ -431,7 +446,49 @@ getAllLayersVolumeticTS <- function(sid, startDate, endDate, dataSource='APSIM',
   cnt=0
   for (i in 1:nrow(dps)) {
     
-    rawProbeTS <- getProbeDataTS(sid=sid, productType='Soil-Moisture', depth=dps$depth[i], startDate=startDate, endDate=endDate)
+    rawProbeTS <- getProbeDataTS(sid=sid, productType='Soil-Moisture', depth=dps$depth[i], startDate=startDate, endDate=endDate, tempCorrection=tempCorrection, correctionVal=correctionVal)
+    
+    if(nrow(rawProbeTS) > 0){
+      cnt=cnt+1
+      
+      volTS <- getLayerVolumeticTS(sid=sid, rawProbeVals=rawProbeTS, calData=calibs, probeDepth=dps$depth[i], type=type)
+      colnames(volTS) <- paste0('D_', dps$depth[i])
+      
+      if(cnt==1){
+        ots <- volTS
+      }else{
+        ots <- merge.xts(ots, volTS)
+      }
+      
+    }
+    else{
+     # print(paste0('No data for ', sid, ' Depth = ', dps$depth[i]))
+    }
+  }
+  
+  if(exists('ots'))
+  {
+    return(ots)
+  }else{
+    return(NULL)
+  }
+  
+  
+ 
+}
+
+
+getAllLayersVolumeticTS2 <- function(sid, rawTS, calibs, type='Available', tempCorrection=F, correctionVal=0.3){
+  
+  dps <- getDBProbeDepths(sid = sid)
+  #calibs = getProbeCalibrationData(sid = sid, datasource=dataSource)
+  
+  cnt=0
+  for (i in 1:nrow(dps)) {
+    
+   #rawProbeTS <- getProbeDataTS(sid=sid, productType='Soil-Moisture', depth=dps$depth[i], startDate=startDate, endDate=endDate, tempCorrection=tempCorrection, correctionVal=correctionVal)
+    
+    rawProbeTS <- rawTS[,i]
     
     if(nrow(rawProbeTS) > 0){
       cnt=cnt+1
@@ -461,7 +518,6 @@ getAllLayersVolumeticTS <- function(sid, startDate, endDate, dataSource='APSIM',
   
   
 }
-
 
 plotPAW <- function(dfBucket, title='PAW', yscale=10){
   
