@@ -14,7 +14,7 @@ library(lubridate)
 rasterOptions(datatype="FLT4S", timer=TRUE, format='GTiff',progress="text",chunksize=1e+09,maxmemory=1e+09, overwrite=TRUE) # maxmemory = max no of cells to read into memory
 
 
-
+machineName <- as.character(Sys.info()['nodename'])
 if(machineName == 'soils-discovery'){
   probeDBfile <- '/datasets/work/lw-soildatarepo/work/Ross/EP/EP_ProbeData.db'
   print(probeDBfile)

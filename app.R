@@ -15,8 +15,6 @@ if(machineName == 'soils-discovery'){
   source('./Utils_EP.R')
   source('./calibrateSoilsDynamic.R')
 }else{
-
-  #source('C:/Users/sea084/OneDrive - CSIRO/RossRCode/Git/EP/Utils_EP.R')
   source('./Utils_EP.R')
   source('./calibrateSoilsDynamic.R')
 }
