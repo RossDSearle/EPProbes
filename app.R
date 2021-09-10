@@ -12,11 +12,8 @@ library(leaflet)
 
 machineName <- as.character(Sys.info()['nodename'])
 if(machineName == 'soils-discovery'){
-
   source('./Utils_EP.R')
   source('./calibrateSoilsDynamic.R')
-
-  
 }else{
 
   source('C:/Users/sea084/OneDrive - CSIRO/RossRCode/Git/EP/Utils_EP.R')
@@ -183,7 +180,7 @@ server <- function(input, output, session) {
     RV$sid <- rec$SiteID
     RV$currentRawTS <- getAllProbeDataTS(sid=RV$sid, tempCorrection=T, correctionVal=input$tempCor)
     
-    calibs <- CalibrateSoilsDynamic(rawTS = RV$currentRawTS, sid=sid, calSrc='APSIM')
+    calibs <- CalibrateSoilsDynamic(rawTS = RV$currentRawTS, sid=RV$sid, calSrc='APSIM')
     RV$currentCalibs <- calibs
 
    # RV$currentCalibs <- getProbeCalibrationData(sid = RV$sid, datasource='APSIM')
@@ -204,8 +201,11 @@ server <- function(input, output, session) {
   output$rawTSChart <- renderDygraph({
 
     req(RV$currentRawTS)
+    
+    maxVal <- max(RV$currentRawTS)
+    
     dt <- as.Date(input$datePker)
-    dygraph(RV$currentRawTS,  group = 'Main')%>%
+    dygraph(RV$currentRawTS,  group = 'Main') %>%
       dyLegend(show = "follow", width = 250, showZeroValues = TRUE, labelsDiv = NULL, labelsSeparateLines = FALSE, hideOnMouseOut = TRUE) %>%
       dyAxis("y", label ='Raw Probe Values', valueRange = c(0, maxVal))  %>%
     dyEvent( dt, label = dt, labelLoc = c("top"), color = "black", strokePattern = "solid")

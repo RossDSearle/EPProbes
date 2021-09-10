@@ -13,7 +13,14 @@ library(lubridate)
 
 rasterOptions(datatype="FLT4S", timer=TRUE, format='GTiff',progress="text",chunksize=1e+09,maxmemory=1e+09, overwrite=TRUE) # maxmemory = max no of cells to read into memory
 
-probeDBfile <- 'C:/Projects/EP/ProbeCalibrations/EP_ProbeData.db'
+
+
+if(machineName == 'soils-discovery'){
+  probeDBfile <- '/datasets/work/lw-soildatarepo/work/Ross/EP/EP_ProbeData.db'
+  print(probeDBfile)
+}else{
+  probeDBfile <- 'C:/Projects/EP/ProbeCalibrations/EP_ProbeData.db'
+}
 
 
 plotProfile <- function( x, depths, pts=NULL, attName, title=''){
@@ -176,7 +183,7 @@ getAWCParamsForSite <- function(siteName, datasource){
  
   dulRecs <- getSoilAttribute(siteName=siteName, datasource=datasource, attribute='P3B_VL_03')
   llRecs <- getSoilAttribute(siteName=siteName, datasource=datasource, attribute='P3B_VL_15')
-  odf <- data.frame(sid=sid, upperDepth=dulRecs$upperDepth, lowerDepth=dulRecs$lowerDepth, LL15=llRecs$value, DUL=dulRecs$value)
+  odf <- data.frame(sid=siteName, upperDepth=dulRecs$upperDepth, lowerDepth=dulRecs$lowerDepth, LL15=llRecs$value, DUL=dulRecs$value)
   return(odf)
   
 }

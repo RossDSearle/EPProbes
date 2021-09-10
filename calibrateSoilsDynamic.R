@@ -8,7 +8,7 @@ CalibrateSoilsDynamic <- function(rawTS, sid, calSrc='APSIM'){
   minQt = 0.02
   maxQt = 0.98
   
-  
+  print(sid)
    siteNames <- getDBSiteNames()
    rec <- siteNames[siteNames$SiteID == sid, ]
    print(rec)
