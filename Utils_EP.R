@@ -412,6 +412,9 @@ splineVals <- function(indf, atts){
   
   ol <- vector("list", length = length(atts))
   
+  indf$LL15 <- as.numeric(as.character(indf$LL15))
+  indf$DUL <- as.numeric(as.character(indf$DUL))
+  
   for (n in 1:length(atts)) {
     att=atts[n]
     sdf <- data.frame(indf[,c(1:3)], as.numeric(indf[att][[1]]),stringsAsFactors = FALSE)

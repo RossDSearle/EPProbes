@@ -186,6 +186,7 @@ server <- function(input, output, session) {
     
     ts <- getAllLayersVolumeticTS2(sid=RV$sid, rawTS=RV$currentRawTS, calibs, type='Available', tempCorrection=T, correctionVal=0.3)
     ts[is.na(ts)] <- 0 
+    print(calibs)
     
     RV$currentTS <- ts
     RV$currentRainTS <- getProbeDataTS(sid=RV$sid , productType = 'Rainfall', depth=0)
