@@ -1,6 +1,4 @@
-
-#sid='opSID_40105'
-#CalibrateSoilsDynamic(rawTS)
+library(stringr)
 
 CalibrateSoilsDynamic <- function(rawTS, sid, calSrc='APSIM'){
   

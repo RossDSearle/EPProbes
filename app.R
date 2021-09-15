@@ -135,6 +135,7 @@ server <- function(input, output, session) {
     if(!is.null(RV$currentTS)){
      
       dv <-input$datePker
+      print(RV$currentCalibs)
       plotPAWProfile(ts=RV$currentTS[dv,], calibs=RV$currentCalibs, title=RV$sid)
            
     }
@@ -177,6 +178,7 @@ server <- function(input, output, session) {
     req(input$probeName, input$tempCor)
     rec <- probeInfo[probeInfo$ProjectSiteName == input$probeName, ]
     RV$sid <- rec$SiteID
+    print(RV$sid)
     RV$currentRawTS <- getAllProbeDataTS(sid=RV$sid, tempCorrection=T, correctionVal=input$tempCor)
     
     calibs <- CalibrateSoilsDynamic(rawTS = RV$currentRawTS, sid=RV$sid, calSrc='APSIM')

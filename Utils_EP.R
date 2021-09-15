@@ -488,7 +488,7 @@ getAllLayersVolumeticTS <- function(sid, startDate, endDate, dataSource='APSIM',
 }
 
 
-getAllLayersVolumeticTS2 <- function(sid, rawTS, calibs, type='Available', tempCorrection=F, correctionVal=0.3){
+getAllLayersVolumeticTS2 <- function(sid, rawTS, calibs, type='Available'){
   
   dps <- getDBProbeDepths(sid = sid)
   #calibs = getProbeCalibrationData(sid = sid, datasource=dataSource)
