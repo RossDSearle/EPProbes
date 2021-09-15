@@ -22,6 +22,7 @@ if(machineName == 'soils-discovery'){
 probeInfo <- getDBSiteNames()
 probeNames <- runQuery("select distinct(site) from soilData where source = 'APSIM' order by site")
 probeNames <- probeNames[-4,]
+probeNames <- probeNames[-6]
 
 startDate = '2016-01-01'
 endDate = '2021-08-30'
@@ -44,7 +45,7 @@ getMonthDay <- 'function(d) {
 ui <- fluidPage(
 
     # Application title
-    titlePanel("EP Volumetric Probe Info"),
+    titlePanel("Eyre Peninsular Volumetric Probe Info"),
 
     tags$style('.shiny-plot-output  {
 display: inline-block;
@@ -186,7 +187,7 @@ server <- function(input, output, session) {
 
    # RV$currentCalibs <- getProbeCalibrationData(sid = RV$sid, datasource='APSIM')
     
-    ts <- getAllLayersVolumeticTS2(sid=RV$sid, rawTS=RV$currentRawTS, calibs, type='Available', tempCorrection=T, correctionVal=0.3)
+    ts <- getAllLayersVolumeticTS2(sid=RV$sid, rawTS=RV$currentRawTS, calibs, type='Available')
     ts[is.na(ts)] <- 0 
     print(calibs)
     
